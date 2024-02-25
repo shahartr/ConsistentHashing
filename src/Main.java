@@ -7,13 +7,11 @@ import java.util.*;
 
 public class Main extends Application {
     static final int KEYS = 10000;
-    static final int SERVERS = 10;
+    static final int SERVERS = 100;
     static final long MAX_VALUE = (long) Math.pow(2, 32) - 1;
     static final int VIRTUAL_SERVERS = 400;
-
-    static List<Double> loadsResults;
+    static List<Double> loadsWithoutCopiesResults;
     static List<Double> loadsWithCopiesResults;
-
 
     public static void main(String[] args) {
         //a:
@@ -23,18 +21,11 @@ public class Main extends Application {
         long[] servers = createRandomArray(SERVERS);
 
         //c:
-        Map<Long, Long> keyToServerMap = assignKeysToServers(keys, servers);
+        Map<Long, Long> keyToServerMapWithoutCopies = assignKeysToServers(keys, servers);
 
         //d:
-        Map<Long, Integer> loads = getLoads(keyToServerMap); // loads is a server to num of assigned keys map
-
-        double median = computeMedian(loads);
-        double average = computeAverage(loads);
-        double minimum = computeMinimum(loads);
-        double maximum = computeMaximum(loads);
-        double percentile25 = computePercentile(loads, 0.25);
-        double percentile75 = computePercentile(loads, 0.75);
-        addResultsToLoadsResults(median, average, minimum, maximum, percentile25, percentile75);
+        Map<Long, Integer> loadsWithoutCopies = getLoadsWithoutCopies(keyToServerMapWithoutCopies); // loads is a server to num of assigned keys map
+        addResultsToLoadsResults(loadsWithoutCopies);
 
         //e:
         long[] serversWithCopies = createServersWithVirtualCopies(servers);
@@ -42,15 +33,8 @@ public class Main extends Application {
 
         //f:
         Map<Long, Long> keyToServerMapWithCopies = assignKeysToServers(keys, serversWithCopies);
-        Map<Long, Integer> loadsWithCopies = getLoads(keyToServerMapWithCopies);
-
-        double medianWithCopies = computeMedian(loadsWithCopies);
-        double averageWithCopies = computeAverage(loadsWithCopies);
-        double minimumWithCopies = computeMinimum(loadsWithCopies);
-        double maximumWithCopies = computeMaximum(loadsWithCopies);
-        double percentile25WithCopies = computePercentile(loadsWithCopies, 0.25);
-        double percentile75WithCopies = computePercentile(loadsWithCopies, 0.75);
-        addResultsToLoadsWithCopiesResults(medianWithCopies, averageWithCopies, minimumWithCopies, maximumWithCopies, percentile25WithCopies, percentile75WithCopies);
+        Map<Long, Integer> loadsWithCopies = getLoadsWithCopies(keyToServerMapWithCopies, serverToVirtualCopies);
+        addResultsToLoadsWithCopiesResults(loadsWithCopies);
 
         //g:
         launch(args);
@@ -95,7 +79,7 @@ public class Main extends Application {
         return servers[0];
     }
 
-    private static Map<Long, Integer> getLoads(Map<Long, Long> keyToServerMap) {
+    private static Map<Long, Integer> getLoadsWithoutCopies(Map<Long, Long> keyToServerMap) {
         Map<Long, Integer> loads = new HashMap<>();
 
         for (long key : keyToServerMap.keySet()) {
@@ -107,6 +91,34 @@ public class Main extends Application {
             else{
                 loads.put(server, 1);
             }
+        }
+        return loads;
+    }
+
+    private static Map<Long, Integer> getLoadsWithCopies(Map<Long, Long> keyToServerMapWithCopies, Map<Long, List<Long>> serverToVirtualCopies) {
+        Map<Long, Integer> loads = new HashMap<>();
+
+        for (long key : keyToServerMapWithCopies.keySet()) {
+            long server = keyToServerMapWithCopies.get(key);
+
+            if(!serverToVirtualCopies.containsKey(server)){ //if server is not virtual
+                long copy = server;
+
+                for(long s: serverToVirtualCopies.keySet()){
+                    if(serverToVirtualCopies.get(s).contains(copy)){
+                        server = s;
+                        break;
+                    }
+                }
+            }
+
+            if(loads.containsKey(server)){
+                loads.put(server, loads.get(server)+1);
+            }
+            else{
+                loads.put(server, 1);
+            }
+
         }
         return loads;
     }
@@ -171,18 +183,34 @@ public class Main extends Application {
         return percentile;
     }
 
-    private static void addResultsToLoadsResults(double median, double average, double minimum, double maximum, double percentile25, double percentile75) {
-        loadsResults = new ArrayList<>();
-        loadsResults.add(median);
-        loadsResults.add(average);
-        loadsResults.add(minimum);
-        loadsResults.add(maximum);
-        loadsResults.add(percentile25);
-        loadsResults.add(percentile75);
+    private static void addResultsToLoadsResults(Map<Long, Integer> loadsWithoutCopies) {
+        double median = computeMedian(loadsWithoutCopies);
+        double average = computeAverage(loadsWithoutCopies);
+        double minimum = computeMinimum(loadsWithoutCopies);
+        double maximum = computeMaximum(loadsWithoutCopies);
+        double percentile25 = computePercentile(loadsWithoutCopies, 0.25);
+        double percentile75 = computePercentile(loadsWithoutCopies, 0.75);
+
+        loadsWithoutCopiesResults = new ArrayList<>();
+
+        loadsWithoutCopiesResults.add(median);
+        loadsWithoutCopiesResults.add(average);
+        loadsWithoutCopiesResults.add(minimum);
+        loadsWithoutCopiesResults.add(maximum);
+        loadsWithoutCopiesResults.add(percentile25);
+        loadsWithoutCopiesResults.add(percentile75);
     }
 
-    private static void addResultsToLoadsWithCopiesResults(double medianWithCopies, double averageWithCopies, double minimumWithCopies, double maximumWithCopies, double percentile25WithCopies, double percentile75WithCopies) {
+    private static void addResultsToLoadsWithCopiesResults(Map<Long, Integer> loadsWithCopies) {
+        double medianWithCopies = computeMedian(loadsWithCopies);
+        double averageWithCopies = computeAverage(loadsWithCopies);
+        double minimumWithCopies = computeMinimum(loadsWithCopies);
+        double maximumWithCopies = computeMaximum(loadsWithCopies);
+        double percentile25WithCopies = computePercentile(loadsWithCopies, 0.25);
+        double percentile75WithCopies = computePercentile(loadsWithCopies, 0.75);
+
         loadsWithCopiesResults = new ArrayList<>();
+
         loadsWithCopiesResults.add(medianWithCopies);
         loadsWithCopiesResults.add(averageWithCopies);
         loadsWithCopiesResults.add(minimumWithCopies);
@@ -252,12 +280,12 @@ public class Main extends Application {
 
         XYChart.Series<String, Number> series1 = new XYChart.Series<>();
         series1.setName("Without Copies");
-        series1.getData().add(new XYChart.Data<>("Median", loadsResults.get(0)));
-        series1.getData().add(new XYChart.Data<>("Average", loadsResults.get(1)));
-        series1.getData().add(new XYChart.Data<>("Minimum", loadsResults.get(2)));
-        series1.getData().add(new XYChart.Data<>("Maximum", loadsResults.get(3)));
-        series1.getData().add(new XYChart.Data<>("Percentile 25", loadsResults.get(4)));
-        series1.getData().add(new XYChart.Data<>("Percentile 75", loadsResults.get(5)));
+        series1.getData().add(new XYChart.Data<>("Median", loadsWithoutCopiesResults.get(0)));
+        series1.getData().add(new XYChart.Data<>("Average", loadsWithoutCopiesResults.get(1)));
+        series1.getData().add(new XYChart.Data<>("Minimum", loadsWithoutCopiesResults.get(2)));
+        series1.getData().add(new XYChart.Data<>("Maximum", loadsWithoutCopiesResults.get(3)));
+        series1.getData().add(new XYChart.Data<>("Percentile 25", loadsWithoutCopiesResults.get(4)));
+        series1.getData().add(new XYChart.Data<>("Percentile 75", loadsWithoutCopiesResults.get(5)));
 
         XYChart.Series<String, Number> series2 = new XYChart.Series<>();
         series2.setName("With Copies");
